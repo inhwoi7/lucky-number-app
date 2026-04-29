@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback } from "react";
 import { useDrum } from "@/lib/useDrum";
 import { analyzeFixed, ballColor, drawNumbers, Hexagram } from "@/lib/luckyEngine";
 import styles from "./DrumMachine.module.css";
@@ -27,28 +27,24 @@ export default function DrumMachine() {
   const [fixed, setFixed] = useState<Set<number>>(new Set());
   const [resultBalls, setResultBalls] = useState<ResultBall[]>([]);
   const [hexagram, setHexagram] = useState<Hexagram | null>(null);
-  const [centerMsg, setCenterMsg] = useState("구슬을 눌러\n고정 번호 선택");
+  const [centerMsg, setCenterMsg] = useState("추출 버튼을\n눌러보세요");
   const [isDrawing, setIsDrawing] = useState(false);
   const [isDone, setIsDone] = useState(false);
-  const [hoveredBall, setHoveredBall] = useState<number | null>(null);
   const { drumAngle, spinAndStop, startIdle } = useDrum();
 
-  const toggleFixed = useCallback(
-    (n: number) => {
-      if (isDrawing) return;
-      setFixed((prev) => {
-        const next = new Set(prev);
-        if (next.has(n)) {
-          next.delete(n);
-        } else {
-          if (next.size >= 5) return prev;
-          next.add(n);
-        }
-        return next;
-      });
-    },
-    [isDrawing]
-  );
+  const toggleFixed = useCallback((n: number) => {
+    if (isDrawing) return;
+    setFixed((prev) => {
+      const next = new Set(prev);
+      if (next.has(n)) {
+        next.delete(n);
+      } else {
+        if (next.size >= 5) return prev;
+        next.add(n);
+      }
+      return next;
+    });
+  }, [isDrawing]);
 
   const revealNumbers = useCallback(
     (drawn: number[], hexa: Hexagram, fixedSnap: Set<number>) => {
@@ -107,7 +103,7 @@ export default function DrumMachine() {
     setHexagram(null);
     setIsDone(false);
     setIsDrawing(false);
-    setCenterMsg("구슬을 눌러\n고정 번호 선택");
+    setCenterMsg("추출 버튼을\n눌러보세요");
     startIdle();
   }, [startIdle]);
 
@@ -128,70 +124,33 @@ export default function DrumMachine() {
         <p className={styles.sub}>드럼에서 나의 번호가 뽑힙니다</p>
       </header>
 
-      {/* DRUM */}
+      {/* DRUM — 구경용, 클릭 불가 */}
       <section className={styles.stage}>
-        <span className={styles.chip}>구슬을 눌러 고정하세요 (최대 5개)</span>
-
         <div className={styles.drumWrap}>
-          {/* Ring */}
           <div className={styles.drumRing}>
             <div className={styles.drumInner} />
             <div className={styles.chute} />
           </div>
 
-          {/* Balls */}
           {Array.from({ length: 45 }, (_, i) => i + 1).map((n) => {
             const { x, y } = getBallPos(n, drumAngle);
             const isFixed = fixed.has(n);
-            const isHovered = hoveredBall === n;
-
             return (
-              <button
+              <div
                 key={n}
-                onClick={() => toggleFixed(n)}
-                onMouseEnter={() => setHoveredBall(n)}
-                onMouseLeave={() => setHoveredBall(null)}
-                onTouchStart={() => setHoveredBall(n)}
-                onTouchEnd={() => setHoveredBall(null)}
                 className={[
                   styles.drumBall,
                   styles[ballColor(n)],
                   isFixed ? styles.fixedSel : "",
-                  isHovered ? styles.magnified : "",
                 ].join(" ")}
-                style={{
-                  left: x,
-                  top: y,
-                  zIndex: isHovered ? 100 : isFixed ? 10 : 1,
-                }}
-                aria-label={`숫자 ${n}${isFixed ? " (고정됨)" : ""}`}
+                style={{ left: x, top: y }}
               >
                 <span className={styles.ballNum}>{n}</span>
                 {isFixed && <span className={styles.lockPip}>🔒</span>}
-              </button>
+              </div>
             );
           })}
 
-          {/* Magnifier tooltip — shows number large outside ring when hovered */}
-          {hoveredBall !== null && (() => {
-            const { x, y } = getBallPos(hoveredBall, drumAngle);
-            // push tooltip toward center to stay visible
-            const cx = x + 16, cy = y + 16;
-            const dx = 150 - cx, dy = 150 - cy;
-            const dist = Math.sqrt(dx*dx + dy*dy) || 1;
-            const tipX = cx + (dx / dist) * 72;
-            const tipY = cy + (dy / dist) * 72;
-            return (
-              <div
-                className={styles.magnifierBubble}
-                style={{ left: tipX - 26, top: tipY - 26, pointerEvents: "none" }}
-              >
-                {hoveredBall}
-              </div>
-            );
-          })()}
-
-          {/* Center info */}
           <div className={styles.center}>
             <span className={styles.centerSym}>{hexagram?.sym ?? "☰"}</span>
             <span className={styles.centerMsg}>{centerMsg}</span>
@@ -202,10 +161,39 @@ export default function DrumMachine() {
             )}
           </div>
         </div>
+      </section>
 
-        <p className={styles.tally}>
-          고정 숫자 <strong>{fixed.size}</strong> / 5개
-        </p>
+      {/* NUMBER GRID — 고정 번호 선택 */}
+      <section className={styles.gridSection}>
+        <div className={styles.gridHeader}>
+          <span className={styles.chip}>고정 번호 선택 (최대 5개)</span>
+          <span className={styles.tally}>
+            <strong>{fixed.size}</strong> / 5
+          </span>
+        </div>
+
+        <div className={styles.numGrid}>
+          {Array.from({ length: 45 }, (_, i) => i + 1).map((n) => {
+            const isFixed = fixed.has(n);
+            return (
+              <button
+                key={n}
+                onClick={() => toggleFixed(n)}
+                disabled={isDrawing}
+                className={[
+                  styles.gridBall,
+                  styles[ballColor(n)],
+                  isFixed ? styles.gridFixed : "",
+                ].join(" ")}
+                aria-label={`숫자 ${n}${isFixed ? " (고정됨)" : ""}`}
+              >
+                {n}
+                {isFixed && <span className={styles.gridLock}>🔒</span>}
+              </button>
+            );
+          })}
+        </div>
+
         <p className={styles.advisory}>{advisory}</p>
       </section>
 
